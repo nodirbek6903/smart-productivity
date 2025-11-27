@@ -1,0 +1,6 @@
+2025-11-11 12:32:41 [31merror[39m:AI analysis error: 400 Invalid value: 'User'. Supported values are: 'system', 'assistant', 'user', 'function', 'tool', and 'developer'.
+2025-11-11 12:42:30 [31merror[39m:AI analysis error: task_id is not defined
+2025-11-11 12:43:22 [31merror[39m:AI analysis error: task_id is not defined
+2025-11-11 12:46:25 [31merror[39m:❌ Mailtrap email error: Invalid login: 535 5.7.0 Invalid credentials
+2025-11-11 12:46:25 [32minfo[39m:AI analysis done for task: Sug'orish ishlarini tugatish
+2025-11-11 18:53:45 [32minfo[39m:AI analysis done for task: Yangi foydalanuvchilarga yordam berish
