@@ -147,10 +147,10 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = {...req.body}
 
-    const isAdmin = (req.user.role.name = "ADMIN");
-    const isSelf = req.user._id.toString() === id;
+    const isAdmin = req.user && req.user.role && req.user.role.name === "ADMIN"
+    const isSelf = req.user && req.user._id && req.user._id.toString() === id;
 
     if (!isAdmin && !isSelf) {
       return res.status(403).json({
@@ -258,8 +258,8 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const isAdmin = req.user.role.name === "ADMIN";
-    const isSelf = req.user._id.toString() === id;
+    const isAdmin = req.user && req.user.role && req.user.role.name === "ADMIN";
+    const isSelf = req.user && req.user._id && req.user._id.toString() === id;
 
     if (!isAdmin && !isSelf) {
       return res.status(403).json({
@@ -276,7 +276,7 @@ exports.changePassword = async (req, res) => {
       });
     }
     if (isSelf) {
-      const isMatch = await User.comparePassword(currentPassword);
+      const isMatch = await user.comparePassword(currentPassword);
       if (!isMatch) {
         return res.status(400).json({
           success: false,

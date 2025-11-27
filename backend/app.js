@@ -19,6 +19,7 @@ const teamRoutes = require("./src/routes/team")
 const timeRoutes = require("./src/routes/time")
 const userRoutes = require("./src/routes/user")
 const auditLogRoutes = require("./src/routes/auditLog")
+const commentRoutes = require("./src/routes/comment")
 const app = express();
 
 app.use(helmet())
@@ -64,6 +65,7 @@ app.use("/teams", teamRoutes)
 app.use("/time", timeRoutes) 
 app.use("/users", userRoutes)
 app.use("/audit-logs", auditLogRoutes)
+app.use("/comments", commentRoutes)
 
 app.get("/", (req, res) => {
   res.send("API is running...");

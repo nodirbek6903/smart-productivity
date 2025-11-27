@@ -6,7 +6,7 @@ exports.getAuditLogs = async (req, res) => {
 
     const filter = {};
 
-    if (user) filter.actor = user;
+    if (user) filter.user = user;
     if (action) filter.action = action;
 
     if (start || end) {
@@ -16,7 +16,7 @@ exports.getAuditLogs = async (req, res) => {
     }
 
     const logs = await AuditLog.find(filter)
-      .populate("actor", "name email role")
+      .populate("user", "fullName email role")
       .limit(Number(limit))
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
