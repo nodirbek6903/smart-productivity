@@ -95,6 +95,12 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+userSchema.statics.matchPassword = async function(email,password) {
+  const user = await this.findOne({email}).select("+password")
+  if(!user) return false;
+  return await user.comparePassword(password)
+}
+
 // JSON'da parolni ko'rsatmaslik
 userSchema.methods.toJSON = function() {
   const user = this.toObject();

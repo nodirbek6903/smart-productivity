@@ -73,7 +73,7 @@ exports.login = asyncHandler(async (req,res) => {
     })
   }
 
-  const isMatch = await User.matchPassword(password)
+  const isMatch = await User.comparePassword(password)
   if(!isMatch){
     return res.status(401).json({
       success: false,

@@ -3,7 +3,6 @@ const router = express.Router()
 const {addMember,createProject,getAllProjects,getProjectById,updateProject} = require("../controllers/projectController")
 const {protect} = require("../middlewares/authMiddleware")
 const {authorize} = require("../middlewares/roleMiddleware")
-const {validateRequest} = require("../middlewares/validateRequest")
 
 router.use(protect)
 
