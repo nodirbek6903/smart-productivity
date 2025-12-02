@@ -20,6 +20,7 @@ const timeRoutes = require("./src/routes/time")
 const userRoutes = require("./src/routes/user")
 const auditLogRoutes = require("./src/routes/auditLog")
 const commentRoutes = require("./src/routes/comment")
+const adminRoutes = require("./src/routes/admin")
 const app = express();
 
 app.use(helmet())
@@ -56,6 +57,7 @@ app.get("/health", (req,res) => {
 app.use("/activity", activityRoutes)
 app.use("/auth", authRoutes);
 app.use("/department", departmentRoutes)
+app.use("/admin", adminRoutes)
 app.use("/documents", documentRoutes)
 app.use("/notifications", notificationRoutes)
 app.use("/projects", projectRoutes)

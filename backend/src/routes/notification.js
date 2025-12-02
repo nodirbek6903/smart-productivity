@@ -7,6 +7,6 @@ router.use(protect)
 
 router.get("/",getMyNotifications)
 router.post("/:id/read", markAsRead)
-router.post("/mark-all-read", markAllAsRead)
+router.put("/mark-all-read", markAllAsRead)
 
 module.exports = router

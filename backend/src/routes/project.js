@@ -11,6 +11,6 @@ router.get("/:id",getProjectById)
 
 router.post("/",authorize("ADMIN","MANAGER"),createProject)
 router.put("/:id",authorize("ADMIN","MANAGER",updateProject))
-router.post("/:id/add-member",authorize("ADMIN","MANAGER"),addMember)
+router.patch("/:id/add-member",authorize("ADMIN","MANAGER"),addMember)
 
 module.exports = router
