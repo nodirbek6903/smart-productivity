@@ -16,6 +16,16 @@ exports.getAllUsers = async (req, res) => {
 
     const filter = {};
 
+    // USER → faqat o'zini ko'radi
+    if (req.user.role.name === "USER") {
+      filter._id = req.user._id;
+    }
+
+    // MANAGER → faqat o'z bo‘limidagi userlarni ko‘radi
+    if (req.user.role.name === "MANAGER") {
+      filter.department = req.user.department;
+    }
+
     if (search) {
       filter.$or = [
         { fullName: { $regex: search, $options: "i" } },
@@ -78,6 +88,21 @@ exports.getUserById = async (req, res) => {
         message: "Foydalanuvchi topilmadi",
       });
     }
+
+    // RBAC filtering
+    const isSelf = req.user._id.toString() === req.params.id;
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isManagerSameDept =
+      req.user.role.name === "MANAGER" &&
+      String(user.department?._id) === String(req.user.department)
+
+    if (!isAdmin && !isSelf && !isManagerSameDept) {
+      return res.status(403).json({
+        success: false,
+        message: "Bu foydalanuvchini ko'rishga ruxsatingiz yo'q",
+      });
+    }
+
     res.status(200).json({ success: true, data: user });
   } catch (error) {
     res.status(500).json({
@@ -147,9 +172,9 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = {...req.body}
+    const updates = { ...req.body };
 
-    const isAdmin = req.user && req.user.role && req.user.role.name === "ADMIN"
+    const isAdmin = req.user && req.user.role && req.user.role.name === "ADMIN";
     const isSelf = req.user && req.user._id && req.user._id.toString() === id;
 
     if (!isAdmin && !isSelf) {
@@ -165,6 +190,7 @@ exports.updateUser = async (req, res) => {
     if (!isAdmin) {
       delete updates.role;
       delete updates.isActive;
+      delete updates.department;
     }
 
     const oldUser = await User.findById(id);

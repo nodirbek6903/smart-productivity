@@ -10,8 +10,8 @@ router.post("/",authorize("ADMIN"),createTeam)
 router.put("/:id",authorize("ADMIN"), updateTeam)
 router.delete("/:id",authorize("ADMIN"),deleteTeam)
 
-router.get("/", getAllTeams)
-router.get("/:id",getTeamById)
+router.get("/",authorize("ADMIN"), getAllTeams)
+router.get("/:id",authorize("ADMIN","MANAGER"), getTeamById)
 
 router.post("/:id/add-member", authorize("ADMIN","MANAGER"), addMemberToTeam)
 router.post("/:id/remove-member", authorize("ADMIN","MANAGER"),removeMemberFromTeam)

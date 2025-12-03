@@ -13,7 +13,7 @@ router.get("/stats", authorize("ADMIN"), getUserStats)
 
 router.get("/", authorize("ADMIN","MANAGER"), getAllUsers)
 
-router.get("/:id",getUserById)
+router.get("/:id", authorize("ADMIN","MANAGER","USER"), getUserById)
 
 router.post("/", authorize("ADMIN"),validateRequest(userValidation.create), createUser)
 

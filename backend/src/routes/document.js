@@ -7,16 +7,10 @@ const upload = require("../middlewares/taskUpload")
 
 router.use(protect)
 
-router.post("/",upload.single("file"),uploadDocument)
-router.get("/",getAllDocuments)
-router.get("/:id",getDocumentById)
-router.put("/:id",updateDocument)
-router.delete("/:id",deleteDocument)
-
-
-
-
-
-
+router.post("/", authorize("ADMIN","MANAGER"), upload.single("file"), uploadDocument)
+router.get("/", authorize("ADMIN","MANAGER","USER"), getAllDocuments)
+router.get("/:id", authorize("ADMIN","MANAGER","USER"), getDocumentById)
+router.put("/:id", authorize("ADMIN","MANAGER"), updateDocument)
+router.delete("/:id", authorize("ADMIN"), deleteDocument)
 
 module.exports = router

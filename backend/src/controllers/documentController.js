@@ -128,12 +128,15 @@ exports.updateDocument = async (req,res) => {
         await oldDoc.save()
 
         await AuditLog.create({
-            user:req.user._id,
-            action:"UPDATE_DOCUMENT",
-            entity:"Document",
-            entityId:newDoc._id,
-            changes:{version:newDoc.version}
-        })
+  user: req.user._id,
+  action: "UPDATE_DOCUMENT",
+  entity: "Document",
+  entityId: newDoc._id,
+  changes: { version: newDoc.version },
+  ipAddress: req.ip,
+  userAgent: req.headers["user-agent"]
+});
+
 
         res.status(200).json({success:true,message:"Hujjat yangilandi",document:newDoc})
     } catch (error) {

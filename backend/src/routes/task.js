@@ -21,26 +21,26 @@ const upload = require("../middlewares/taskUpload");
 
 router.use(protect);
 
-router.get("/", getAllTasks);
+router.get("/",authorize("ADMIN"), getAllTasks);
 
-router.get("/:id", getTaskById);
+router.get("/:id",authorize("ADMIN","MANAGER","USER"), getTaskById);
 
 router.post("/", authorize("ADMIN", "MANAGER"), createTask);
 
-router.put("/:id", updateTask);
+router.put("/:id",authorize("ADMIN","MANAGER"), updateTask);
 
 router.delete("/:id", authorize("ADMIN", "MANAGER"), deleteTask);
 
-router.patch("/:id/status", updateTaskStatus);
+router.patch("/:id/status",authorize("ADMIN","MANAGER","USER"), updateTaskStatus);
 
-router.patch("/:id/add-subtask", addSubtask);
-router.patch("/:id/remove-subtask", removeSubtask);
+router.patch("/:id/add-subtask",authorize("ADMIN","MANAGER"), addSubtask);
+router.patch("/:id/remove-subtask",authorize("ADMIN","MANAGER"), removeSubtask);
 
-router.patch("/:id/add-dependency", addDependency);
-router.patch("/:id/remove-dependency", removeDependency);
+router.patch("/:id/add-dependency",authorize("ADMIN","MANAGER"), addDependency);
+router.patch("/:id/remove-dependency",authorize("ADMIN","MANAGER"), removeDependency);
 
-router.post("/:id/attachments", upload.single("file"), uploadAttachment);
+router.post("/:id/attachments", authorize("ADMIN","MANAGER","USER"), upload.single("file"), uploadAttachment);
 
-router.delete("/:id/attachments/:fileId", deleteAttachment);
+router.delete("/:id/attachments/:fileId",authorize("ADMIN","MANAGER","USER"), deleteAttachment);
 
 module.exports = router;

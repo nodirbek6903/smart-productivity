@@ -6,6 +6,7 @@ const {authorize} = require("../middlewares/roleMiddleware")
 
 router.use(protect)
 
-router.post("/add-comment", createComment)
+router.post("/add-comment", authorize("USER","MANAGER","ADMIN"), createComment)
+
 
 module.exports = router

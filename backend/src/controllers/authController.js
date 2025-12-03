@@ -62,48 +62,50 @@ exports.register = asyncHandler(async (req,res) => {
   })
 })
 
-exports.login = asyncHandler(async (req,res) => {
-  const {email,password} = req.body
+exports.login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-  const user = await User.findOne({email}).populate("role","name description")
-  if(!user){
+  const user = await User.findOne({ email }).select("+password").populate("role", "name description");
+  if (!user) {
     return res.status(401).json({
-      success:false,
-      message:"Email yoki parol noto'g'ri"
-    })
+      success: false,
+      message: "Email yoki parol noto'g'ri"
+    });
   }
 
-  const isMatch = await User.comparePassword(password)
-  if(!isMatch){
+  // 🔥 TUZATILDI
+  const isMatch = await user.comparePassword(password);
+  if (!isMatch) {
     return res.status(401).json({
       success: false,
       message: "Email yoki parol noto'g'ri",
     });
   }
 
-  const token = generateToken(user._id)
+  const token = generateToken(user._id);
 
   await AuditLog.create({
-    user:user._id,
-    action:"LOGIN",
-    entity:"User",
-    entityId:user._id,
-    ipAddress:req.ip,
-    userAgent:req.headers["user-agent"]
-  })
+    user: user._id,
+    action: "LOGIN",
+    entity: "User",
+    entityId: user._id,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"]
+  });
 
   res.status(200).json({
-    success:true,
-    message:"Tizimga muvaffaqqiyatli kirildi",
-    data:{
-      _id:user._id,
-      fullName:user.fullName,
-      email:user.email,
-      role:user?.role?.name,
+    success: true,
+    message: "Tizimga muvaffaqqiyatli kirildi",
+    data: {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user?.role?.name,
       token
     }
-  })
-})
+  });
+});
+
 
 exports.logout = asyncHandler(async (req,res) => {
    await AuditLog.create({

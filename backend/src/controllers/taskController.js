@@ -6,27 +6,29 @@ const fs = require("fs");
 
 exports.getAllTasks = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      status,
-      priority,
-      project,
-      assignedTo,
-      search,
-    } = req.query;
+    const { page = 1, limit = 10, status, priority, project, assignedTo, search } = req.query;
 
     const filter = { isActive: true };
 
-    // Faqat o'z vazifalarini ko'rish (USER uchun)
+    // USER → faqat o'z vazifalari
     if (req.user.role.name === "USER") {
       filter.assignedTo = req.user._id;
+    }
+
+    // MANAGER → faqat o‘z bo‘limi projectlariga tegishli tasklar
+    if (req.user.role.name === "MANAGER") {
+      const departmentProjects = await Project.find({
+        department: req.user.department,
+      }).select("_id");
+
+      filter.project = { $in: departmentProjects.map((p) => p._id) };
     }
 
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
     if (project) filter.project = project;
     if (assignedTo) filter.assignedTo = assignedTo;
+
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: "i" } },
@@ -37,7 +39,7 @@ exports.getAllTasks = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const tasks = await Task.find(filter)
-      .populate("project", "name code")
+      .populate("project", "name code department")
       .populate("assignedTo", "fullName email avatar")
       .populate("createdBy", "fullName email")
       .limit(parseInt(limit))
@@ -59,40 +61,45 @@ exports.getAllTasks = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Vazifalarni olishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Vazifalarni olishda xatolik", error: error.message });
   }
 };
 
 exports.getTaskById = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
-      .populate("project", "name code")
-      .populate("assignedTo", "fullName email avatar")
+      .populate("project", "name code department manager")
+      .populate("assignedTo", "fullName email avatar department")
       .populate("createdBy", "fullName email")
       .populate("dependencies", "title status")
       .populate("parentTask", "title status");
 
     if (!task) {
-      return res.status(404).json({
+      return res.status(404).json({ success: false, message: "Vazifa topilmadi" });
+    }
+
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isAssigned = task.assignedTo?._id.toString() === req.user._id.toString();
+    const isDepartmentManager =
+      req.user.role.name === "MANAGER" &&
+      task.project.department.toString() === req.user.department.toString();
+
+    if (!isAdmin && !isAssigned && !isDepartmentManager) {
+      return res.status(403).json({
         success: false,
-        message: "Vazifa topilmadi",
+        message: "Bu vazifani ko'rishga ruxsatingiz yo'q",
       });
     }
 
     res.status(200).json({ success: true, data: task });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Vazifani olishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Vazifani olishda xatolik", error: error.message });
   }
 };
 
+/* =============================
+   CREATE TASK
+================================ */
 exports.createTask = async (req, res) => {
   try {
     const taskData = {
@@ -100,36 +107,40 @@ exports.createTask = async (req, res) => {
       createdBy: req.user._id,
     };
 
-    // Loyiha mavjudligini tekshirish
     const project = await Project.findById(taskData.project);
     if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Loyiha topilmadi",
-      });
+      return res.status(404).json({ success: false, message: "Loyiha topilmadi" });
+    }
+
+    // RBAC: MANAGER → faqat o‘z departmentidagi projectga task yarata oladi
+    if (req.user.role.name === "MANAGER") {
+      if (project.department.toString() !== req.user.department.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Boshqa bo‘lim loyihasiga vazifa qo‘sha olmaysiz",
+        });
+      }
     }
 
     const task = await Task.create(taskData);
+
     await task.populate([
       { path: "project", select: "name code" },
       { path: "assignedTo", select: "fullName email avatar" },
       { path: "createdBy", select: "fullName email" },
     ]);
 
-    // Notification yaratish
+    // Notification
     await Notification.create({
-      recipient: task.assignedTo._id,
+      recipient: task.assignedTo,
       sender: req.user._id,
       type: "TASK_ASSIGNED",
       title: "Yangi vazifa tayinlandi",
       message: `"${task.title}" vazifasi sizga tayinlandi`,
-      relatedEntity: {
-        entityType: "Task",
-        entityId: task._id,
-      },
+      relatedEntity: { entityType: "Task", entityId: task._id },
     });
 
-    // Audit log
+    // Audit Log
     await AuditLog.create({
       user: req.user._id,
       action: "CREATE_TASK",
@@ -140,36 +151,41 @@ exports.createTask = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    res.status(201).json({
-      success: true,
-      message: "Vazifa muvaffaqiyatli yaratildi",
-      data: task,
-    });
+    res.status(201).json({ success: true, message: "Vazifa yaratildi", data: task });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Vazifa yaratishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Vazifa yaratishda xatolik", error: error.message });
   }
 };
 
+/* =============================
+   UPDATE TASK
+================================ */
 exports.updateTask = async (req, res) => {
   try {
     const updates = req.body;
 
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.id).populate("project", "department");
     if (!task) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Task topilmadi" });
+      return res.status(404).json({ success: false, message: "Task topilmadi" });
     }
 
     const oldData = task.toJSON();
 
-    Object.keys(updates).forEach((key) => {
-      task[key] = updates[key];
-    });
+    // RBAC
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isAssignee = task.assignedTo?.toString() === req.user._id.toString();
+    const isManagerDepartment =
+      req.user.role.name === "MANAGER" &&
+      task.project.department.toString() === req.user.department.toString();
+
+    if (!isAdmin && !isAssignee && !isManagerDepartment) {
+      return res.status(403).json({
+        success: false,
+        message: "Bu vazifani yangilashga ruxsatingiz yo'q",
+      });
+    }
+
+    Object.assign(task, updates);
 
     if (task.status === "DONE" && !task.completedAt) {
       task.completedAt = new Date();
@@ -177,47 +193,43 @@ exports.updateTask = async (req, res) => {
 
     await task.save();
 
-    await task.populate([
-      { path: "project", select: "name code" },
-      { path: "assignedTo", select: "fullName email avatar" },
-      { path: "createdBy", select: "fullName email" },
-    ]);
-
     await AuditLog.create({
       user: req.user._id,
       action: "UPDATE_TASK",
       entity: "Task",
       entityId: task._id,
-      changes: {
-        old: oldData,
-        new: task.toJSON(),
-      },
+      changes: { old: oldData, new: task.toJSON() },
       ipAddress: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Vazifa muvaffaqqiyatli yangilandi",
-      data: task,
-    });
+    res.status(200).json({ success: true, message: "Task yangilandi", data: task });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Vazifani yangilashda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Task yangilashda xatolik", error: error.message });
   }
 };
 
+/* =============================
+   DELETE TASK (SOFT DELETE)
+================================ */
 exports.deleteTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.id).populate("project", "department");
 
     if (!task) {
-      return res.status(404).json({
+      return res.status(404).json({ success: false, message: "Task topilmadi" });
+    }
+
+    // RBAC
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isManagerDepartment =
+      req.user.role.name === "MANAGER" &&
+      task.project.department.toString() === req.user.department.toString();
+
+    if (!isAdmin && !isManagerDepartment) {
+      return res.status(403).json({
         success: false,
-        message: "Task topilmadi",
+        message: "Bu vazifani o'chira olmaysiz",
       });
     }
 
@@ -234,31 +246,37 @@ exports.deleteTask = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    res
-      .status(200)
-      .json({ success: true, message: "Vazifa muvaffaqqiyatli o'chirildi" });
+    res.status(200).json({ success: true, message: "Vazifa o'chirildi" });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Vazifani o'chirishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Vazifani o'chirishda xatolik", error: error.message });
   }
 };
 
+/* =============================
+   UPDATE TASK STATUS
+================================ */
 exports.updateTaskStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.id).populate("project", "manager department");
     if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Vazifa topilmadi",
-      });
+      return res.status(404).json({ success: false, message: "Vazifa topilmadi" });
     }
 
     const oldStatus = task.status;
+
+    // RBAC
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isAssignee = task.assignedTo?.toString() === req.user._id.toString();
+    const isManagerDepartment =
+      req.user.role.name === "MANAGER" &&
+      task.project.department.toString() === req.user.department.toString();
+
+    if (!isAdmin && !isAssignee && !isManagerDepartment) {
+      return res.status(403).json({ success: false, message: "Statusni o‘zgartirishga ruxsat yo‘q" });
+    }
+
     task.status = status;
 
     if (status === "DONE") {
@@ -266,12 +284,8 @@ exports.updateTaskStatus = async (req, res) => {
     }
 
     await task.save();
-    await task.populate([
-      { path: "project", select: "name code manager" },
-      { path: "assignedTo", select: "fullName email" },
-    ]);
 
-    // Project manager ga notification
+    // Notification
     if (status === "DONE") {
       await Notification.create({
         recipient: task.project.manager,
@@ -279,27 +293,29 @@ exports.updateTaskStatus = async (req, res) => {
         type: "TASK_COMPLETED",
         title: "Vazifa bajarildi",
         message: `"${task.title}" vazifasi bajarildi`,
-        relatedEntity: {
-          entityType: "Task",
-          entityId: task._id,
-        },
+        relatedEntity: { entityType: "Task", entityId: task._id },
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Status muvaffaqiyatli yangilandi",
-      data: task,
+    await AuditLog.create({
+      user: req.user._id,
+      action: "UPDATE_TASK_STATUS",
+      entity: "Task",
+      entityId: task._id,
+      changes: { oldStatus, newStatus: status },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
     });
+
+    res.status(200).json({ success: true, message: "Status yangilandi", data: task });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Statusni yangilashda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Statusni yangilashda xatolik", error: error.message });
   }
 };
 
+/* =============================
+   SUBTASK MANAGEMENT
+================================ */
 exports.addSubtask = async (req, res) => {
   try {
     const { subtaskId } = req.body;
@@ -308,26 +324,25 @@ exports.addSubtask = async (req, res) => {
     const subtask = await Task.findById(subtaskId);
 
     if (!task || !subtask) {
-      return res.status(404).json({
-        success: false,
-        message: "Vazifa yoki subtask topilmadi",
-      });
+      return res.status(404).json({ success: false, message: "Vazifa topilmadi" });
     }
 
     subtask.parentTask = task._id;
     await subtask.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Subtask muvaffaqqiyatli qo'shildi",
-      data: subtask,
+    await AuditLog.create({
+      user: req.user._id,
+      action: "ADD_SUBTASK",
+      entity: "Task",
+      entityId: task._id,
+      changes: { subtaskId },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
     });
+
+    res.status(200).json({ success: true, message: "Subtask qo'shildi", data: subtask });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "subtask qo'shishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Subtask qo'shishda xatolik", error: error.message });
   }
 };
 
@@ -336,43 +351,41 @@ exports.removeSubtask = async (req, res) => {
     const { subtaskId } = req.body;
 
     const subtask = await Task.findById(subtaskId);
-
     if (!subtask) {
-      return res.status(404).json({
-        success: false,
-        message: "Subtask topilmadi",
-      });
+      return res.status(404).json({ success: false, message: "Subtask topilmadi" });
     }
 
     subtask.parentTask = null;
     await subtask.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Subtask olib tashlandi",
-      data: subtask,
+    await AuditLog.create({
+      user: req.user._id,
+      action: "REMOVE_SUBTASK",
+      entity: "Task",
+      entityId: subtask._id,
+      changes: { removed: subtaskId },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
     });
+
+    res.status(200).json({ success: true, message: "Subtask olib tashlandi", data: subtask });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Subtask remove qilishda xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Subtask remove xatolik", error: error.message });
   }
 };
 
+/* =============================
+   DEPENDENCY MANAGEMENT
+================================ */
 exports.addDependency = async (req, res) => {
   try {
     const { dependencyId } = req.body;
 
     const task = await Task.findById(req.params.id);
-
     const dep = await Task.findById(dependencyId);
 
     if (!task || !dep) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Vazifa topilmadi" });
+      return res.status(404).json({ success: false, message: "Vazifa topilmadi" });
     }
 
     if (task.dependencies.includes(dependencyId)) {
@@ -385,15 +398,19 @@ exports.addDependency = async (req, res) => {
     task.dependencies.push(dependencyId);
     await task.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Dependency qo'shildi",
-      data: task,
+    await AuditLog.create({
+      user: req.user._id,
+      action: "ADD_DEPENDENCY",
+      entity: "Task",
+      entityId: task._id,
+      changes: { dependencyId },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
     });
+
+    res.status(200).json({ success: true, message: "Dependency qo'shildi", data: task });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Xatolik", error: error.message });
+    res.status(500).json({ success: false, message: "Dependency xatolik", error: error.message });
   }
 };
 
@@ -402,44 +419,41 @@ exports.removeDependency = async (req, res) => {
     const { dependencyId } = req.body;
 
     const task = await Task.findById(req.params.id);
-
     if (!task) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Vazifa topilmadi" });
+      return res.status(404).json({ success: false, message: "Vazifa topilmadi" });
     }
 
-    task.dependencies = task.dependencies.filter(
-      (dep) => dep.toString() !== dependencyId
-    );
+    task.dependencies = task.dependencies.filter((d) => d.toString() !== dependencyId);
     await task.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Dependency olib tashlandi",
-      data: task,
+    await AuditLog.create({
+      user: req.user._id,
+      action: "REMOVE_DEPENDENCY",
+      entity: "Task",
+      entityId: task._id,
+      changes: { removed: dependencyId },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
     });
+
+    res.status(200).json({ success: true, message: "Dependency olib tashlandi", data: task });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Xatolik", error: error.message });
+    res.status(500).json({ success: false, message: "Xatolik", error: error.message });
   }
 };
 
+/* =============================
+   ATTACHMENT MANAGEMENT
+================================ */
 exports.uploadAttachment = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "Fayl topilmadi",
-      });
+      return res.status(400).json({ success: false, message: "Fayl topilmadi" });
     }
 
     const task = await Task.findById(req.params.id);
     if (!task) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Task topilmadi" });
+      return res.status(404).json({ success: false, message: "Task topilmadi" });
     }
 
     task.attachments.push({
@@ -451,17 +465,23 @@ exports.uploadAttachment = async (req, res) => {
 
     await task.save();
 
+    await AuditLog.create({
+      user: req.user._id,
+      action: "UPLOAD_ATTACHMENT",
+      entity: "Task",
+      entityId: task._id,
+      changes: { file: req.file.filename },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
     res.status(200).json({
       success: true,
-      message: "Fayl muvaffaqqiyatli yuklandi",
+      message: "Fayl yuklandi",
       data: task,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "uploadAttachment xatolik",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: "Fayl yuklashda xatolik", error: error.message });
   }
 };
 
@@ -471,16 +491,12 @@ exports.deleteAttachment = async (req, res) => {
 
     const task = await Task.findById(req.params.id);
     if (!task) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Task topilmadi" });
+      return res.status(404).json({ success: false, message: "Task topilmadi" });
     }
 
     const file = task.attachments.id(fileId);
     if (!file) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Fayl topilmadi" });
+      return res.status(404).json({ success: false, message: "Fayl topilmadi" });
     }
 
     if (fs.existsSync(file.path)) {
@@ -490,15 +506,18 @@ exports.deleteAttachment = async (req, res) => {
     file.remove();
     await task.save();
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Attachment muvaffaqqiyatli o'chirildi",
-      });
+    await AuditLog.create({
+      user: req.user._id,
+      action: "DELETE_ATTACHMENT",
+      entity: "Task",
+      entityId: task._id,
+      changes: { removedFile: file.filename },
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(200).json({ success: true, message: "Attachment o'chirildi" });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Xatolik", error: error.message });
+    res.status(500).json({ success: false, message: "Attachment delete xatolik", error: error.message });
   }
 };
