@@ -15,7 +15,7 @@ router.get("/", authorize("ADMIN","MANAGER"), getAllUsers)
 
 router.get("/:id", authorize("ADMIN","MANAGER","USER"), getUserById)
 
-router.post("/", authorize("ADMIN"),validateRequest(userValidation.create), createUser)
+router.post("/", authorize("ADMIN","MANAGER"),validateRequest(userValidation.create), createUser)
 
 router.put("/:id",validateRequest(userValidation.update), updateUser)
 

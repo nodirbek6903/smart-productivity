@@ -115,9 +115,9 @@ exports.getUserById = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { email, password, fullName, phone, role, department, position } =
-      req.body;
+    const { email, password, fullName, phone, role, department, position } = req.body;
 
+    // 1️⃣ Email unique bo'lishi shart
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
@@ -126,14 +126,40 @@ exports.createUser = async (req, res) => {
       });
     }
 
+    // 2️⃣ Rol mavjudligini tekshiramiz
     const userRole = await Role.findById(role);
     if (!userRole) {
       return res.status(400).json({
         success: false,
-        message: "Noto'g'ri rol ID",
+        message: "Berilgan rol ID topilmadi",
       });
     }
 
+    // 3️⃣ RBAC Qoidalari
+    const isAdmin = req.user.role.name === "ADMIN";
+    const isManager = req.user.role.name === "MANAGER";
+
+    // ⭐ MANAGER uchun cheklovlar
+    if (isManager) {
+      
+      // Manager faqat USER yaratadi
+      if (userRole.name !== "USER") {
+        return res.status(403).json({
+          success: false,
+          message: "Manager faqat USER rolidagi xodim yaratishi mumkin",
+        });
+      }
+
+      // Manager faqat o‘z departmentiga user yaratadi
+      if (String(department) !== String(req.user.department)) {
+        return res.status(403).json({
+          success: false,
+          message: "Manager faqat o'z bo'limi uchun foydalanuvchi yaratishi mumkin",
+        });
+      }
+    }
+
+    // 4️⃣ Userni yaratish
     const user = await User.create({
       email,
       password,
@@ -145,6 +171,7 @@ exports.createUser = async (req, res) => {
       isEmailVerified: true,
     });
 
+    // 5️⃣ Audit log
     await AuditLog.create({
       user: req.user._id,
       action: "CREATE_USER",
@@ -155,19 +182,21 @@ exports.createUser = async (req, res) => {
       userAgent: req.headers["user-agent"],
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Foydalanuvchi muvaffaqqiyatli yaratildi",
       data: user,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Foydalanuvchi yaratishda xatolik",
       error: error.message,
     });
   }
 };
+
 
 exports.updateUser = async (req, res) => {
   try {
