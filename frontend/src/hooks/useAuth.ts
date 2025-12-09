@@ -1,18 +1,7 @@
-import { useAppSelector } from "../app/hooks";
-
+import { useSelector } from "react-redux";
+import { RootState } from "../app/store";
 export const useAuth = () => {
-  const { token, user } = useAppSelector((state) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
 
-  const isAuthenticated = Boolean(token);
-  const role = user?.role?.name;
-
-  return {
-    token,
-    user,
-    role,
-    isAuthenticated,
-    isAdmin: role === "ADMIN",
-    isManager: role === "MANAGER",
-    isUser: role === "USER"
-  };
+  return { user, token, isAuthenticated: Boolean(token) };
 };

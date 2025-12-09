@@ -1,23 +1,31 @@
-export interface Role {
-  _id: string;
-  name: "ADMIN" | "MANAGER" | "USER";
-  description: string;
-}
-export interface Department {
-  _id: string;
-  name: string;
-}
-export interface User {
+export interface IUser {
   _id: string;
   fullName: string;
   email: string;
-  phone?: string;
+
+  // Role modeli bilan bog‘langan
+  role: {
+    _id: string;
+    name: "ADMIN" | "MANAGER" | "USER";
+    permissions?: string[];
+  };
+
+  status: "active" | "inactive";
+
   avatar?: string;
-  role: Role;
-  department?: Department;
-  position?: string;
-  isActive: boolean;
-  isEmailVerified: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+
+  // Bog‘langan Department
+  department?: {
+    _id: string;
+    name: string;
+  };
+
+  // Bog‘langan Team
+  team?: {
+    _id: string;
+    name: string;
+  };
+
+  createdAt: string;
+  updatedAt: string;
 }
