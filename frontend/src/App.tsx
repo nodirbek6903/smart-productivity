@@ -1,7 +1,42 @@
-import { Toaster } from "react-hot-toast";
+import { useEffect } from "react";
+import { useDispatch } from "react-redux";
+import { authApi } from "./api/authApi";
+import {
+  logout,
+  setCredentials,
+  finishAuthLoading,
+} from "./features/auth/authSlice";
 import AppRouter from "./router/AppRouter";
+import { Toaster } from "react-hot-toast";
 
 function App() {
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        dispatch(finishAuthLoading());
+        return;
+      }
+
+      try {
+        const res = await authApi.getMe();
+
+        // BACKEND: { success, data: user }
+        const user = res?.data ?? res;
+
+        dispatch(setCredentials({ user, token }));
+      } catch (err) {
+        dispatch(logout());
+      } finally {
+        dispatch(finishAuthLoading());
+      }
+    };
+
+    initAuth();
+  }, [dispatch]);
   return (
     <>
       <AppRouter />
@@ -10,43 +45,39 @@ function App() {
         position="top-right"
         reverseOrder={false}
         toastOptions={{
-          // 🔥 Default styling for ALL toasts
           style: {
-            background: "#1f2937", // gray-800
+            background: "#1f2937",
             color: "#fff",
-            border: "1px solid #374151", // gray-700
+            border: "1px solid #374151",
             padding: "12px 16px",
             borderRadius: "12px",
           },
 
-          // 🔥 SUCCESS toast style
           success: {
             iconTheme: {
-              primary: "#10b981", // emerald-500
+              primary: "#10b981",
               secondary: "#fff",
             },
             style: {
-              background: "#064e3b", // emerald-900
+              background: "#064e3b",
               border: "1px solid #10b981",
             },
           },
 
-          // 🔥 ERROR toast style
           error: {
             iconTheme: {
-              primary: "#ef4444", // red-500
+              primary: "#ef4444",
               secondary: "#fff",
             },
             style: {
-              background: "#450a0a", // red-900
+              background: "#450a0a",
               border: "1px solid #ef4444",
             },
           },
 
-          // 🔥 LOADING toast style
           loading: {
             style: {
-              background: "#1e3a8a", // blue-900
+              background: "#1e3a8a",
               border: "1px solid #3b82f6",
             },
           },

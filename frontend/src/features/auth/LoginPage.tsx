@@ -109,7 +109,7 @@ export default function LoginPage() {
           <button
             onClick={submit}
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold
+            className="w-full cursor-pointer py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold
                      shadow-lg transition disabled:opacity-50"
           >
             {loading ? "Yuklanmoqda..." : "Kirish"}

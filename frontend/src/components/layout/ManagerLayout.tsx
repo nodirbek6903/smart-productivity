@@ -1,9 +1,19 @@
-import React from 'react'
+import Sidebar from "./Sidebar";
+import Navbar from "./Navbar";
+import { Outlet } from "react-router-dom";
 
-const ManagerLayout = () => {
+export default function ManagerLayout() {
   return (
-    <div>ManagerLayout</div>
-  )
-}
+    <div className="flex">
+      <Sidebar />
 
-export default ManagerLayout
+      <div className="flex-1 min-h-screen bg-gray-900">
+        <Navbar />
+
+        <main className="p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

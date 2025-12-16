@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { IUser } from "../../types/Auth";
+import { IUser } from "../../types/User";
 import { saveToken, removeToken } from "../../utils/storage";
 
 interface AuthState {
@@ -24,20 +24,23 @@ const authSlice = createSlice({
     ) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
+      state.loading = false;
       saveToken(action.payload.token);
     },
 
     logout: (state) => {
       state.user = null;
       state.token = null;
+      state.loading = false;
       removeToken();
     },
 
-    updateUser: (state, action: PayloadAction<IUser>) => {
-      state.user = { ...state.user, ...action.payload };
+    finishAuthLoading: (state) => {
+      state.loading = false;
     },
   },
 });
 
-export const { setCredentials, logout, updateUser } = authSlice.actions;
+export const { setCredentials, logout, finishAuthLoading } = authSlice.actions;
+
 export default authSlice.reducer;
